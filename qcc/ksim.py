@@ -150,6 +150,35 @@ class SimResult:
     reset_dirty: int         # shots where an R hit a |1> qubit
 
 
+class _BitStore:
+    """Classical bits allocated on first write and freed after their last read (keeps memory bounded)."""
+
+    def __init__(self, circ, W):
+        self.W = W
+        self.d = {}
+        last = {}
+        for idx, op in enumerate(circ.ops):
+            if op.cond is not None:
+                last[op.cond] = idx
+            if op.name in ('BIT_STORE0', 'BIT_STORE1', 'BIT_INVERT', 'HMR'):
+                for bb in op.bs:
+                    last[bb] = max(last.get(bb, -1), idx)
+        self.free_at = {}
+        for bb, idx in last.items():
+            self.free_at.setdefault(idx, []).append(bb)
+
+    def __getitem__(self, k):
+        v = self.d.get(k)
+        return v if v is not None else np.zeros(self.W, dtype=np.uint64)
+
+    def __setitem__(self, k, v):
+        self.d[k] = v
+
+    def release(self, idx):
+        for bb in self.free_at.get(idx, ()):
+            self.d.pop(bb, None)
+
+
 def simulate(circ: Kmx, xs: np.ndarray, x_qubits: list[int], *, seed: int = 0,
              track_life: bool = False, hmr_override: dict[int, np.ndarray] | None = None,
              probe=None, snap_at=None) -> SimResult:
@@ -164,7 +193,8 @@ def simulate(circ: Kmx, xs: np.ndarray, x_qubits: list[int], *, seed: int = 0,
     W = (shots + 63) // 64
     rng = np.random.default_rng(seed)
     q = np.zeros((circ.num_qubits, W), dtype=np.uint64)
-    b = np.zeros((max(circ.num_bits, 1), W), dtype=np.uint64)
+    zero_w = np.zeros(W, dtype=np.uint64)
+    b = _BitStore(circ, W)
     valid = pack(np.ones(shots, dtype=bool))
     for k, qi in enumerate(x_qubits):
         q[qi] = pack(((xs >> k) & 1).astype(bool))
@@ -184,6 +214,8 @@ def simulate(circ: Kmx, xs: np.ndarray, x_qubits: list[int], *, seed: int = 0,
         return rng.integers(0, 2**64, size=W, dtype=np.uint64, endpoint=False) & valid
 
     for idx, op in enumerate(circ.ops):
+        if idx:
+            b.release(idx - 1)
         if snap_at is not None and idx in snap_at:
             snap_at[idx] = (q.copy(), half.copy(), eighth.copy(), len(rot_ops))
         name = op.name
