@@ -36,3 +36,4 @@ qcc/runs/
 qcc/__pycache__/
 *.kmb
 qcc/handoff/fonts/
+*.kmx
