@@ -56,6 +56,8 @@ class Kmx:
             if t[0] == 'APPEND_TO_REGISTER':
                 pending.setdefault(t[2], []).append(int(t[1][1:]))
                 continue
+            if t[0] in ('INFO_TAG', 'MARK'):
+                continue
             if t[0] == 'REGISTER':
                 regs[t[2].strip('"')] = pending.pop(t[1])
                 continue
@@ -185,6 +187,8 @@ def simulate(circ: Kmx, xs: np.ndarray, x_qubits: list[int], *, seed: int = 0,
         if snap_at is not None and idx in snap_at:
             snap_at[idx] = (q.copy(), half.copy(), eighth.copy(), len(rot_ops))
         name = op.name
+        if name in ('INFO_TAG', 'MARK'):
+            continue
         if name == 'PUSH_CONDITION':
             stack.append(stack[-1] & b[op.cond])
             continue
