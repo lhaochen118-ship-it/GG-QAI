@@ -39,11 +39,7 @@ def kaggle(*args, quiet=True):
 def fetch(path: str, dest: Path) -> Path:
     out = dest / path
     if not out.exists():
-        kaggle('datasets', 'download', DS, '-f', path, '-p', str(dest / Path(path).parent), '-q')
-        alt = dest / Path(path).parent / Path(path).name
-        if alt.exists() and alt != out:
-            out.parent.mkdir(parents=True, exist_ok=True)
-            alt.rename(out)
+        kaggle('datasets', 'download', DS, '-f', path, '-p', str(dest), '-q')  # kaggle keeps the full path
     return out
 
 
@@ -85,7 +81,7 @@ def main():
     dqi = fetch(f"circuits/dqi/{new['dqi']['sha12']}.kmb", files)
     chem = files / 'circuits' / 'chemistry' / new['chemistry']['sha12']
     for k in range(64):
-        r = kaggle('datasets', 'download', DS, '-f', f'circuits/chemistry/{chem.name}/angle_k_{k}.kmb', '-p', str(chem), '-q')
+        r = kaggle('datasets', 'download', DS, '-f', f'circuits/chemistry/{chem.name}/angle_k_{k}.kmb', '-p', str(files), '-q')
         if r.returncode:
             break
     fetch(f'circuits/chemistry/{chem.name}/submission.npz', files)
